@@ -9,6 +9,7 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
+#include "freertos/event_groups.h"
 
 //Include ESP submodules headers.
 #include "esp_event.h"
@@ -31,6 +32,12 @@ static const char *TAG = "MQTT_CLIENT";
 static esp_mqtt_client_handle_t client=NULL;
 static TaskHandle_t senderTaskHandler=NULL;
 
+// To handle events that raise activation of sender task
+static EventGroupHandle_t senderTriggerEvents;
+//Declare a variable to hold the data associated with the created event group
+static StaticEventGroup_t senderTriggerEventsStatic;
+
+
 //****************************************************************************
 // Funciones.
 //****************************************************************************
@@ -47,8 +54,11 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
     switch (event->event_id) {
         case MQTT_EVENT_CONNECTED:
+        	// subscribe to topics
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
             msg_id = esp_mqtt_client_subscribe(client, MQTT_TOPIC_SUBSCRIBE_BASE, 0);
+            ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+            msg_id = esp_mqtt_client_subscribe(client, TOPIC_COMMAND, 0);
             ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
             xTaskCreate(mqtt_sender_task, "mqtt_sender", 4096, NULL, 5, &senderTaskHandler); //Crea la tarea MQTT sennder
             break;
@@ -73,6 +83,26 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         	topic_name[event->topic_len]=0; //a�ade caracter de terminacion al final.
 
         	ESP_LOGI(TAG, "MQTT_EVENT_DATA: Topic %s",topic_name);
+
+        	// Handle data subscribed on topic COMMAND
+        	if (strncmp(TOPIC_COMMAND, topic_name, strlen(TOPIC_COMMAND)) == 0)
+        	{
+				// manage received ping command
+				char *strPingCmd = NULL;
+				if (json_scanf(event->data, event->data_len, "{ cmd: %Q}",
+						&strPingCmd))
+				{
+					if (strncmp(strPingCmd, "ping", strlen(strPingCmd)) == 0)
+					{
+						ESP_LOGI(TAG, "cmd: %s", strPingCmd);
+						// notify sender task to send ping response
+						xEventGroupSetBits(senderTriggerEvents, EVENT_PING_REQ);
+					}
+					free(strPingCmd);	// fragmentacion?
+				}
+        	}
+
+        	// ....
 
         	bool booleano;
         	if(json_scanf(event->data, event->data_len, "{ redLed: %B }", &booleano)==1)
@@ -114,26 +144,56 @@ static void mqtt_sender_task(void *pvParameters)
 {
 	char buffer[100]; //"buffer" para guardar el mensaje. Me debo asegurar que quepa...
 	bool booleano=0;
+	EventBits_t activationEvents = 0;
 
 	while (1)
 	{
-		vTaskDelay(configTICK_RATE_HZ);
+		// wait for the activation of an event that requires to publish a message
+		activationEvents = xEventGroupWaitBits(senderTriggerEvents, EVENT_PING_REQ, pdTRUE,
+				pdFALSE, configTICK_RATE_HZ);
 		struct json_out out1 = JSON_OUT_BUF(buffer, sizeof(buffer)); // Inicializa la estructura que gestiona el buffer.
-																	// Hay que hacerlo cada vez para empezar a rellenar desde el principio
-																	// si quiero acumular varios "printf" en la misma cadena, no reinicio out1....
-		json_printf(&out1," { button: %B }",booleano);
-		booleano=!booleano;
 
-		int msg_id = esp_mqtt_client_publish(client, MQTT_TOPIC_PUBLISH_BASE, buffer, 0, 0, 0); //al utilizar la biblioteca Frozen, buffer es una cadena correctamente terminada con el caracter 0.
-																								//as� que puedo no indicar la longitud (cuarto par�metro vale 0).
-																								// Si fuese un puntero a datos binarios arbitr�rios, tendr�a que indicar la longitud de los datos en el cuarto par�metro de la funci�n.
-		ESP_LOGI(TAG, "sent successful, msg_id=%d: %s", msg_id, buffer);
+		switch (activationEvents)
+		{
+			case EVENT_PING_REQ:
+			{
+				json_printf(&out1," { cmd: ping_response }");
+				int msg_id = esp_mqtt_client_publish(client, TOPIC_COMMAND, buffer, 0, 0, 0);
+				ESP_LOGI(TAG, "sent successful on TOPIC_COMMAND, msg_id=%d: %s", msg_id, buffer);
+			}
+				break;
+			default:
+				break;
+		}
+
 	}
+
+//	while (1)
+//	{
+//		vTaskDelay(configTICK_RATE_HZ);
+//		struct json_out out1 = JSON_OUT_BUF(buffer, sizeof(buffer)); // Inicializa la estructura que gestiona el buffer.
+//																	// Hay que hacerlo cada vez para empezar a rellenar desde el principio
+//																	// si quiero acumular varios "printf" en la misma cadena, no reinicio out1....
+//		json_printf(&out1," { button: %B }",booleano);
+//		booleano=!booleano;
+//
+//		int msg_id = esp_mqtt_client_publish(client, MQTT_TOPIC_PUBLISH_BASE, buffer, 0, 0, 0); //al utilizar la biblioteca Frozen, buffer es una cadena correctamente terminada con el caracter 0.
+//																								//as� que puedo no indicar la longitud (cuarto par�metro vale 0).
+//																								// Si fuese un puntero a datos binarios arbitr�rios, tendr�a que indicar la longitud de los datos en el cuarto par�metro de la funci�n.
+//		ESP_LOGI(TAG, "sent successful, msg_id=%d: %s", msg_id, buffer);
+//	}
 }
 
 esp_err_t mqtt_app_start(const char* url)
 {
 	esp_err_t error;
+
+	senderTriggerEvents = xEventGroupCreateStatic(&senderTriggerEventsStatic);
+	if (!senderTriggerEvents)
+	{
+		ESP_LOGE(TAG, "Event group for sender task could not be allocated");
+		return ESP_FAIL;
+	}
 
 	if (client==NULL){
 

@@ -10,6 +10,13 @@
 #define MQTT_TOPIC_PUBLISH_BASE  CONFIG_EXAMPLE_MQTT_TOPIC_PUBLISH_BASE
 
 
+// TOPICS
+#define TOPIC_COMMAND MQTT_TOPIC_SUBSCRIBE_BASE "/COMMAND"
+
+// Eventos para publicacion de mensajes
+#define EVENT_PING_REQ	0x000001
+
+
 //*****************************************************************************
 //      PROTOTIPOS DE FUNCIONES
 //*****************************************************************************
