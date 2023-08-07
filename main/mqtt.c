@@ -60,6 +60,9 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
             msg_id = esp_mqtt_client_subscribe(client, TOPIC_COMMAND, 0);
             ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+			msg_id = esp_mqtt_client_subscribe(client, TOPIC_LED, 0);
+			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+
             xTaskCreate(mqtt_sender_task, "mqtt_sender", 4096, NULL, 5, &senderTaskHandler); //Crea la tarea MQTT sennder
             break;
         case MQTT_EVENT_DISCONNECTED:
@@ -102,28 +105,30 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 				}
         	}
 
-        	// ....
-
-        	bool booleano;
-        	if(json_scanf(event->data, event->data_len, "{ redLed: %B }", &booleano)==1)
+        	// Handle data subscribed on topic LED
+        	if (strncmp(TOPIC_LED, topic_name, strlen(TOPIC_LED)) == 0)
         	{
-        		ESP_LOGI(TAG, "redLed: %s", booleano ? "true":"false");
+				bool ledIncomingState;
+				if(json_scanf(event->data, event->data_len, "{ redLed: %B }", &ledIncomingState)==1)
+				{
+					ESP_LOGI(TAG, "redLed: %s", ledIncomingState ? "true":"false");
 
-        		gpio_set_level(BLINK_GPIO_1, booleano);
-        	}
+					gpio_set_level(BLINK_GPIO_1, ledIncomingState);
+				}
 
-        	if(json_scanf(event->data, event->data_len, "{ greenLed: %B }", &booleano)==1)
-        	{
-        		ESP_LOGI(TAG, "greenLed: %s", booleano ? "true":"false");
+				if(json_scanf(event->data, event->data_len, "{ greenLed: %B }", &ledIncomingState)==1)
+				{
+					ESP_LOGI(TAG, "greenLed: %s", ledIncomingState ? "true":"false");
 
-        		gpio_set_level(BLINK_GPIO_2, booleano);
-        	}
+					gpio_set_level(BLINK_GPIO_2, ledIncomingState);
+				}
 
-        	if(json_scanf(event->data, event->data_len, "{ blueLed: %B }", &booleano)==1)
-        	{
-        		ESP_LOGI(TAG, "blueLed: %s", booleano ? "true":"false");
+				if(json_scanf(event->data, event->data_len, "{ blueLed: %B }", &ledIncomingState)==1)
+				{
+					ESP_LOGI(TAG, "blueLed: %s", ledIncomingState ? "true":"false");
 
-        		gpio_set_level(BLINK_GPIO_3, booleano);
+					gpio_set_level(BLINK_GPIO_3, ledIncomingState);
+				}
         	}
         }
             break;
