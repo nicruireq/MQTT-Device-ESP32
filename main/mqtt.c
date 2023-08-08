@@ -20,6 +20,7 @@
 //Include own project  headers
 #include "gpio_leds.h"
 #include "mqtt.h"
+#include "gpio_push_buttons.h"
 
 //FROZEN JSON parsing/fotmatting library header
 #include "frozen.h"
@@ -62,6 +63,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
 			msg_id = esp_mqtt_client_subscribe(client, TOPIC_LED, 0);
 			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+			msg_id = esp_mqtt_client_subscribe(client, TOPIC_BUTTONS, 0);
+			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
 
             xTaskCreate(mqtt_sender_task, "mqtt_sender", 4096, NULL, 5, &senderTaskHandler); //Crea la tarea MQTT sennder
             break;
@@ -90,18 +93,26 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         	// Handle data subscribed on topic COMMAND
         	if (strncmp(TOPIC_COMMAND, topic_name, strlen(TOPIC_COMMAND)) == 0)
         	{
-				// manage received ping command
-				char *strPingCmd = NULL;
+				// Read incoming json data
+				char *strCmd = NULL;
 				if (json_scanf(event->data, event->data_len, "{ cmd: %Q}",
-						&strPingCmd))
+						&strCmd))
 				{
-					if (strncmp(strPingCmd, "ping", strlen(strPingCmd)) == 0)
+					// manage received ping command
+					if (strncmp(strCmd, "ping", strlen(strCmd)) == 0)
 					{
-						ESP_LOGI(TAG, "cmd: %s", strPingCmd);
+						ESP_LOGI(TAG, "cmd: %s", strCmd);
 						// notify sender task to send ping response
 						xEventGroupSetBits(senderTriggerEvents, EVENT_PING_REQ);
 					}
-					free(strPingCmd);	// fragmentacion?
+					else if (strncmp(strCmd, "poll_buttons", strlen(strCmd)) == 0)
+					{
+						// manage received poll buttons command
+						ESP_LOGI(TAG, "cmd: %s", strCmd);
+						// notify sender task to send ping response
+						xEventGroupSetBits(senderTriggerEvents, EVENT_POLL_BUTTONS);
+					}
+					free(strCmd);	// fragmentacion?
 				}
         	}
 
@@ -130,7 +141,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 					gpio_set_level(BLINK_GPIO_3, ledIncomingState);
 				}
         	}
-        }
+
+		}
             break;
 
         case MQTT_EVENT_ERROR:
@@ -149,13 +161,15 @@ static void mqtt_sender_task(void *pvParameters)
 {
 	char buffer[100]; //"buffer" para guardar el mensaje. Me debo asegurar que quepa...
 	bool booleano=0;
+	int button1State = 1, button2State = 1;
 	EventBits_t activationEvents = 0;
 
 	while (1)
 	{
 		// wait for the activation of an event that requires to publish a message
-		activationEvents = xEventGroupWaitBits(senderTriggerEvents, EVENT_PING_REQ, pdTRUE,
-				pdFALSE, configTICK_RATE_HZ);
+		activationEvents = xEventGroupWaitBits(senderTriggerEvents,
+								EVENT_PING_REQ | EVENT_POLL_BUTTONS,
+								pdTRUE,pdFALSE, configTICK_RATE_HZ);
 		struct json_out out1 = JSON_OUT_BUF(buffer, sizeof(buffer)); // Inicializa la estructura que gestiona el buffer.
 
 		switch (activationEvents)
@@ -165,6 +179,20 @@ static void mqtt_sender_task(void *pvParameters)
 				json_printf(&out1," { cmd: ping_response }");
 				int msg_id = esp_mqtt_client_publish(client, TOPIC_COMMAND, buffer, 0, 0, 0);
 				ESP_LOGI(TAG, "sent successful on TOPIC_COMMAND, msg_id=%d: %s", msg_id, buffer);
+			}
+				break;
+			case EVENT_POLL_BUTTONS:
+			{
+				button1State = gpio_get_level(PUSH_BUTTON1);
+				button2State = gpio_get_level(PUSH_BUTTON2);
+
+				json_printf(&out1, " { button1: %Q, button2: %Q }",
+						(button1State==0?"on":"off"),
+						(button2State==0?"on":"off")
+				);
+
+				int msg_id = esp_mqtt_client_publish(client, TOPIC_BUTTONS, buffer, 0, 0, 0);
+				ESP_LOGI(TAG, "sent successful on TOPIC_BUTTONS, msg_id=%d: %s", msg_id, buffer);
 			}
 				break;
 			default:

@@ -26,6 +26,7 @@
 #include "driver/dac.h"
 
 #include "gpio_leds.h"
+#include "gpio_push_buttons.h"
 #include "lwip/err.h"
 #include "lwip/sockets.h"
 #include "lwip/sys.h"
@@ -129,7 +130,6 @@ static void initialize_console(void)
 }
 
 
-
 void app_main(void)
 {
 
@@ -144,6 +144,9 @@ void app_main(void)
 
 	//Inicializa el GPIO
 	GL_initGPIO(); //Inicializa los pines de salida
+
+	// Configure gpio inputs
+	configurePushButtons();
 
 #if CONFIG_STORE_HISTORY
     initialize_filesystem();
@@ -173,7 +176,7 @@ void app_main(void)
     register_system();
     init_MisComandos();
 
-    //Inicializa el ADC... 12bits con rango de 3,6V (atenuación 11dB)
+    //Inicializa el ADC... 12bits con rango de 3,6V (atenuaciï¿½n 11dB)
     adc1_config_width(ADC_WIDTH_BIT_12);
     adc1_config_channel_atten(ADC_CHANNEL_6, ADC_ATTEN_DB_11); //GPIO34 if ADC1. Rango de 3,6 V
 

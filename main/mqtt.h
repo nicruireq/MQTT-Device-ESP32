@@ -13,9 +13,11 @@
 // TOPICS
 #define TOPIC_COMMAND	MQTT_TOPIC_SUBSCRIBE_BASE "/COMMAND"
 #define TOPIC_LED		MQTT_TOPIC_SUBSCRIBE_BASE "/LED"
+#define TOPIC_BUTTONS		MQTT_TOPIC_SUBSCRIBE_BASE "/BUTTONS"
 
 // Eventos para publicacion de mensajes
-#define EVENT_PING_REQ	0x000001
+#define EVENT_PING_REQ		0x000001
+#define EVENT_POLL_BUTTONS	0x000002
 
 
 //*****************************************************************************
