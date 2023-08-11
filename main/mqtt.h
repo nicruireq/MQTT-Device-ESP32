@@ -16,8 +16,10 @@
 #define TOPIC_BUTTONS		MQTT_TOPIC_SUBSCRIBE_BASE "/BUTTONS"
 
 // Eventos para publicacion de mensajes
-#define EVENT_PING_REQ		0x000001
-#define EVENT_POLL_BUTTONS	0x000002
+#define EVENT_PING_REQ				0x000001
+#define EVENT_POLL_BUTTONS			0x000002
+#define EVENT_ACK_MODE_LEDS_GPIO	0x000004
+#define EVENT_ACK_MODE_LEDS_PWM		0X000008
 
 
 //*****************************************************************************

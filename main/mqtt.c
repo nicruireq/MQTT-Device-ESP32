@@ -112,6 +112,26 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 						// notify sender task to send ping response
 						xEventGroupSetBits(senderTriggerEvents, EVENT_POLL_BUTTONS);
 					}
+					else if (strncmp(strCmd, "mode_leds_gpio", strlen(strCmd)) == 0)
+					{
+						// manage received change led mode to gpio command
+						ESP_LOGI(TAG, "cmd: %s", strCmd);
+						if (GL_isPWMEnabled())
+						{
+							// notify sender task to send ack response
+							xEventGroupSetBits(senderTriggerEvents, EVENT_ACK_MODE_LEDS_GPIO);
+						}
+					}
+					else if (strncmp(strCmd, "mode_leds_pwm", strlen(strCmd)) == 0)
+					{
+						// manage received change led mode to pwm command
+						ESP_LOGI(TAG, "cmd: %s", strCmd);
+						if (!GL_isPWMEnabled())
+						{
+							// notify sender task to send ack response
+							xEventGroupSetBits(senderTriggerEvents, EVENT_ACK_MODE_LEDS_PWM);
+						}
+					}
 					free(strCmd);	// fragmentacion?
 				}
         	}
@@ -119,27 +139,54 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         	// Handle data subscribed on topic LED
         	if (strncmp(TOPIC_LED, topic_name, strlen(TOPIC_LED)) == 0)
         	{
-				bool ledIncomingState;
-				if(json_scanf(event->data, event->data_len, "{ redLed: %B }", &ledIncomingState)==1)
-				{
-					ESP_LOGI(TAG, "redLed: %s", ledIncomingState ? "true":"false");
+        		if (GL_isPWMEnabled())
+        		{
+        			// process like pwm mode
+        			uint8_t ledsIncomingValue[NUM_LEDS] = {0 , 0, 0};
+        			if(json_scanf(event->data, event->data_len, "{ redLed: %hhu }",
+        					&(ledsIncomingValue[0]) )==1)
+					{
+						ESP_LOGI(TAG, "redLed: %i", (int)ledsIncomingValue );
+					}
 
-					gpio_set_level(BLINK_GPIO_1, ledIncomingState);
-				}
+					if (json_scanf(event->data, event->data_len, "{ greenLed: %hhu }",
+							&(ledsIncomingValue[1]) ) == 1)
+					{
+						ESP_LOGI(TAG, "greenLed: %i", (int)ledsIncomingValue );
+					}
 
-				if(json_scanf(event->data, event->data_len, "{ greenLed: %B }", &ledIncomingState)==1)
-				{
-					ESP_LOGI(TAG, "greenLed: %s", ledIncomingState ? "true":"false");
+					if (json_scanf(event->data, event->data_len, "{ blueLed: %hhu }",
+							&(ledsIncomingValue[2]) ) == 1)
+					{
+						ESP_LOGI(TAG, "blueLed: %i", (int)ledsIncomingValue );
+					}
+					GL_setRGB(ledsIncomingValue);
+        		}
+        		else
+        		{
+					// process like gpio mode
+					bool ledIncomingState;
+					if(json_scanf(event->data, event->data_len, "{ redLed: %B }", &ledIncomingState)==1)
+					{
+						ESP_LOGI(TAG, "redLed: %s", ledIncomingState ? "true":"false");
 
-					gpio_set_level(BLINK_GPIO_2, ledIncomingState);
-				}
+						gpio_set_level(BLINK_GPIO_1, ledIncomingState);
+					}
 
-				if(json_scanf(event->data, event->data_len, "{ blueLed: %B }", &ledIncomingState)==1)
-				{
-					ESP_LOGI(TAG, "blueLed: %s", ledIncomingState ? "true":"false");
+					if(json_scanf(event->data, event->data_len, "{ greenLed: %B }", &ledIncomingState)==1)
+					{
+						ESP_LOGI(TAG, "greenLed: %s", ledIncomingState ? "true":"false");
 
-					gpio_set_level(BLINK_GPIO_3, ledIncomingState);
-				}
+						gpio_set_level(BLINK_GPIO_2, ledIncomingState);
+					}
+
+					if(json_scanf(event->data, event->data_len, "{ blueLed: %B }", &ledIncomingState)==1)
+					{
+						ESP_LOGI(TAG, "blueLed: %s", ledIncomingState ? "true":"false");
+
+						gpio_set_level(BLINK_GPIO_3, ledIncomingState);
+					}
+        		}
         	}
 
 		}
@@ -168,7 +215,8 @@ static void mqtt_sender_task(void *pvParameters)
 	{
 		// wait for the activation of an event that requires to publish a message
 		activationEvents = xEventGroupWaitBits(senderTriggerEvents,
-								EVENT_PING_REQ | EVENT_POLL_BUTTONS,
+								EVENT_PING_REQ | EVENT_POLL_BUTTONS |
+								EVENT_ACK_MODE_LEDS_GPIO | EVENT_ACK_MODE_LEDS_PWM,
 								pdTRUE,pdFALSE, configTICK_RATE_HZ);
 		struct json_out out1 = JSON_OUT_BUF(buffer, sizeof(buffer)); // Inicializa la estructura que gestiona el buffer.
 
@@ -193,6 +241,27 @@ static void mqtt_sender_task(void *pvParameters)
 
 				int msg_id = esp_mqtt_client_publish(client, TOPIC_BUTTONS, buffer, 0, 0, 0);
 				ESP_LOGI(TAG, "sent successful on TOPIC_BUTTONS, msg_id=%d: %s", msg_id, buffer);
+			}
+				break;
+			case EVENT_ACK_MODE_LEDS_GPIO:
+			{
+				// change mode to gpio with gpio leds hal
+				GL_stopLEDC();
+				GL_initGPIO();
+				// send ack
+				json_printf(&out1," { cmd: ack_mode_leds_gpio }");
+				int msg_id = esp_mqtt_client_publish(client, TOPIC_COMMAND, buffer, 0, 0, 0);
+				ESP_LOGI(TAG, "sent successful on TOPIC_COMMAND, msg_id=%d: %s", msg_id, buffer);
+			}
+				break;
+			case EVENT_ACK_MODE_LEDS_PWM:
+			{
+				// change mode to pwm with gpio leds hal
+				GL_initLEDC();
+				// send ack
+				json_printf(&out1," { cmd: ack_mode_leds_pwm }");
+				int msg_id = esp_mqtt_client_publish(client, TOPIC_COMMAND, buffer, 0, 0, 0);
+				ESP_LOGI(TAG, "sent successful on TOPIC_COMMAND, msg_id=%d: %s", msg_id, buffer);
 			}
 				break;
 			default:

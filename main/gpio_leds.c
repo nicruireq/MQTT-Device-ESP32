@@ -125,3 +125,7 @@ extern void GL_stopLEDC()
 	g_ledcstatus=false;
 }
 
+extern bool GL_isPWMEnabled()
+{
+	return g_ledcstatus;
+}
