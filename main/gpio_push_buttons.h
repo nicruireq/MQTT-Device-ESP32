@@ -10,9 +10,9 @@
 
 #include "driver/gpio.h"
 
-// Pin IO34
+// Pin IO26
 #define PUSH_BUTTON1	26
-// Pin IO35
+// Pin IO27
 #define PUSH_BUTTON2	27
 
 
