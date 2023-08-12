@@ -9,7 +9,6 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
-#include "freertos/event_groups.h"
 
 //Include ESP submodules headers.
 #include "esp_event.h"
@@ -21,6 +20,7 @@
 #include "gpio_leds.h"
 #include "mqtt.h"
 #include "gpio_push_buttons.h"
+#include "mqttActionsSignaler.h"
 
 //FROZEN JSON parsing/fotmatting library header
 #include "frozen.h"
@@ -32,11 +32,6 @@
 static const char *TAG = "MQTT_CLIENT";
 static esp_mqtt_client_handle_t client=NULL;
 static TaskHandle_t senderTaskHandler=NULL;
-
-// To handle events that raise activation of sender task
-static EventGroupHandle_t senderTriggerEvents;
-//Declare a variable to hold the data associated with the created event group
-static StaticEventGroup_t senderTriggerEventsStatic;
 
 
 //****************************************************************************
@@ -103,14 +98,14 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 					{
 						ESP_LOGI(TAG, "cmd: %s", strCmd);
 						// notify sender task to send ping response
-						xEventGroupSetBits(senderTriggerEvents, EVENT_PING_REQ);
+						signalEvent(EVENT_PING_REQ);
 					}
 					else if (strncmp(strCmd, "poll_buttons", strlen(strCmd)) == 0)
 					{
 						// manage received poll buttons command
 						ESP_LOGI(TAG, "cmd: %s", strCmd);
 						// notify sender task to send ping response
-						xEventGroupSetBits(senderTriggerEvents, EVENT_POLL_BUTTONS);
+						signalEvent(EVENT_POLL_BUTTONS);
 					}
 					else if (strncmp(strCmd, "mode_leds_gpio", strlen(strCmd)) == 0)
 					{
@@ -119,7 +114,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 						if (GL_isPWMEnabled())
 						{
 							// notify sender task to send ack response
-							xEventGroupSetBits(senderTriggerEvents, EVENT_ACK_MODE_LEDS_GPIO);
+							signalEvent(EVENT_ACK_MODE_LEDS_GPIO);
 						}
 					}
 					else if (strncmp(strCmd, "mode_leds_pwm", strlen(strCmd)) == 0)
@@ -129,7 +124,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 						if (!GL_isPWMEnabled())
 						{
 							// notify sender task to send ack response
-							xEventGroupSetBits(senderTriggerEvents, EVENT_ACK_MODE_LEDS_PWM);
+							signalEvent(EVENT_ACK_MODE_LEDS_PWM);
 						}
 					}
 					free(strCmd);	// fragmentacion?
@@ -209,15 +204,13 @@ static void mqtt_sender_task(void *pvParameters)
 	char buffer[100]; //"buffer" para guardar el mensaje. Me debo asegurar que quepa...
 	bool booleano=0;
 	int button1State = 1, button2State = 1;
-	EventBits_t activationEvents = 0;
+	Event_t activationEvents = 0;
 
 	while (1)
 	{
 		// wait for the activation of an event that requires to publish a message
-		activationEvents = xEventGroupWaitBits(senderTriggerEvents,
-								EVENT_PING_REQ | EVENT_POLL_BUTTONS |
-								EVENT_ACK_MODE_LEDS_GPIO | EVENT_ACK_MODE_LEDS_PWM,
-								pdTRUE,pdFALSE, configTICK_RATE_HZ);
+		activationEvents = waitForRegisteredEvents();
+
 		struct json_out out1 = JSON_OUT_BUF(buffer, sizeof(buffer)); // Inicializa la estructura que gestiona el buffer.
 
 		switch (activationEvents)
@@ -290,12 +283,8 @@ esp_err_t mqtt_app_start(const char* url)
 {
 	esp_err_t error;
 
-	senderTriggerEvents = xEventGroupCreateStatic(&senderTriggerEventsStatic);
-	if (!senderTriggerEvents)
-	{
-		ESP_LOGE(TAG, "Event group for sender task could not be allocated");
-		return ESP_FAIL;
-	}
+	// initialize group of events
+	initActionsSignaler();
 
 	if (client==NULL){
 

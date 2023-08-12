@@ -1,4 +1,4 @@
-idf_component_register(SRCS "proyecto_main.c" "miscomandos.c" "wifi.c" "tcp_server.c" "tft_demo.c" "gpio_leds.c" "frozen.c" "mqtt.c" "bluetooth.c" "gpio_push_buttons.c"					
+idf_component_register(SRCS "proyecto_main.c" "miscomandos.c" "wifi.c" "tcp_server.c" "tft_demo.c" "gpio_leds.c" "frozen.c" "mqtt.c" "bluetooth.c" "gpio_push_buttons.c" "mqttActionsSignaler.c"					
      INCLUDE_DIRS "."                    	
 )
 
