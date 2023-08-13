@@ -41,7 +41,8 @@ static Event_t getGlobalFlagForRegisteredEvents()
 	Event_t gflag = EVENT_PING_REQ |
 					EVENT_POLL_BUTTONS |
 					EVENT_ACK_MODE_LEDS_GPIO |
-					EVENT_ACK_MODE_LEDS_PWM;
+					EVENT_ACK_MODE_LEDS_PWM |
+					EVENT_ADC_SEND_MEASURE;
 
 	return gflag;
 }

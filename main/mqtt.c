@@ -21,6 +21,7 @@
 #include "mqtt.h"
 #include "gpio_push_buttons.h"
 #include "mqttActionsSignaler.h"
+#include "adc_reader.h"
 
 //FROZEN JSON parsing/fotmatting library header
 #include "frozen.h"
@@ -50,6 +51,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
     switch (event->event_id) {
         case MQTT_EVENT_CONNECTED:
+        {
         	// subscribe to topics
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
             msg_id = esp_mqtt_client_subscribe(client, MQTT_TOPIC_SUBSCRIBE_BASE, 0);
@@ -60,8 +62,16 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
 			msg_id = esp_mqtt_client_subscribe(client, TOPIC_BUTTONS, 0);
 			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+			msg_id = esp_mqtt_client_subscribe(client, TOPIC_ADC, 0);
+			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
 
             xTaskCreate(mqtt_sender_task, "mqtt_sender", 4096, NULL, 5, &senderTaskHandler); //Crea la tarea MQTT sennder
+            // Start ADC reader task and all its dependencies
+            if (adc_reader_Start() != ESP_OK)
+            {
+            	ESP_LOGE(TAG, "ADC reader task not working");
+            }
+        }
             break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
@@ -255,6 +265,14 @@ static void mqtt_sender_task(void *pvParameters)
 				json_printf(&out1," { cmd: ack_mode_leds_pwm }");
 				int msg_id = esp_mqtt_client_publish(client, TOPIC_COMMAND, buffer, 0, 0, 0);
 				ESP_LOGI(TAG, "sent successful on TOPIC_COMMAND, msg_id=%d: %s", msg_id, buffer);
+			}
+				break;
+			case EVENT_ADC_SEND_MEASURE:
+			{
+				uint32_t last = adc_reader_lastReading();
+				json_printf(&out1," { last_reading: %d }", last);
+				int msg_id = esp_mqtt_client_publish(client, TOPIC_ADC, buffer, 0, 0, 0);
+				ESP_LOGI(TAG, "sent successful on TOPIC_ADC, msg_id=%d: %s", msg_id, buffer);
 			}
 				break;
 			default:

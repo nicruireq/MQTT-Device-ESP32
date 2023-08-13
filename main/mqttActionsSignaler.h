@@ -20,22 +20,8 @@ typedef EventBits_t Event_t;
 #define EVENT_POLL_BUTTONS			0x000002
 #define EVENT_ACK_MODE_LEDS_GPIO	0x000004
 #define EVENT_ACK_MODE_LEDS_PWM		0X000008
+#define EVENT_ADC_SEND_MEASURE		0x000010
 
-
-//typedef enum _EventName {
-//	EVENT_PING_REQ,
-//	EVENT_POLL_BUTTONS,
-//	EVENT_ACK_MODE_LEDS_GPIO,
-//	EVENT_ACK_MODE_LEDS_PWM
-//} _EventName;
-//
-//
-//static Event_t eventsRegister[MAX_EVENTS] = {
-//		0x000001,
-//		0x000002,
-//		0x000004,
-//		0X000008
-//};
 
 esp_err_t initActionsSignaler();
 void signalEvent(Event_t event);
