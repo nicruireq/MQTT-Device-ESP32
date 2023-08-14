@@ -65,6 +65,10 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 			msg_id = esp_mqtt_client_subscribe(client, TOPIC_ADC, 0);
 			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
 
+			// publish message with retain in LWT topic (board is alive)
+			msg_id = esp_mqtt_client_publish(client, TOPIC_LWT, MSG_ALIVE, 0, 0, RETAIN_ON);
+			ESP_LOGE(TAG, "Alive message not published on LWT topic, msg_id=%d", msg_id);
+
             xTaskCreate(mqtt_sender_task, "mqtt_sender", 4096, NULL, 5, &senderTaskHandler); //Crea la tarea MQTT sennder
             // Start ADC reader task and all its dependencies
             if (adc_reader_Start() != ESP_OK)
@@ -308,11 +312,14 @@ esp_err_t mqtt_app_start(const char* url)
 
 		esp_mqtt_client_config_t mqtt_cfg = {
 				.uri = MQTT_BROKER_URL,
+				.lwt_topic = TOPIC_LWT,
+				.lwt_msg = LWT_MESSAGE,
+				.lwt_qos = 1,
+				.lwt_retain = RETAIN_ON
 		};
 		if(url[0] != '\0'){
 			mqtt_cfg.uri= url;
 		}
-
 
 		client = esp_mqtt_client_init(&mqtt_cfg);
 		esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, client);
