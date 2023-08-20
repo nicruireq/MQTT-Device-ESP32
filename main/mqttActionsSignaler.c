@@ -36,13 +36,25 @@ void signalEvent(Event_t event)
 	xEventGroupSetBits(senderTriggerEvents, event);
 }
 
+BaseType_t signalEventFromISR(Event_t event, BaseType_t* xHigherPriorityTaskWoken)
+{
+	*xHigherPriorityTaskWoken = pdFALSE;
+	return xEventGroupSetBitsFromISR(
+			senderTriggerEvents,
+            event,
+            xHigherPriorityTaskWoken );
+}
+
 static Event_t getGlobalFlagForRegisteredEvents()
 {
 	Event_t gflag = EVENT_PING_REQ |
 					EVENT_POLL_BUTTONS |
 					EVENT_ACK_MODE_LEDS_GPIO |
 					EVENT_ACK_MODE_LEDS_PWM |
-					EVENT_ADC_SEND_MEASURE;
+					EVENT_ADC_SEND_MEASURE |
+					EVENT_ACK_ASYNC_BUTTONS |
+					EVENT_PUSHBUTTONS_EDGE |
+					EVENT_ACK_MODE_PUSH_BUTTONS_POLL;
 
 	return gflag;
 }

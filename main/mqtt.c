@@ -69,7 +69,9 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 			msg_id = esp_mqtt_client_publish(client, TOPIC_LWT, MSG_ALIVE, 0, 0, RETAIN_ON);
 			ESP_LOGE(TAG, "Alive message not published on LWT topic, msg_id=%d", msg_id);
 
-            xTaskCreate(mqtt_sender_task, "mqtt_sender", 4096, NULL, 5, &senderTaskHandler); //Crea la tarea MQTT sennder
+            //xTaskCreate(mqtt_sender_task, "mqtt_sender", 4096, NULL, 5, &senderTaskHandler); //Crea la tarea MQTT sender
+			xTaskCreatePinnedToCore(mqtt_sender_task, "mqtt_sender", 4096, NULL, 5, &senderTaskHandler, 1);
+
             // Start ADC reader task and all its dependencies
             if (adc_reader_Start() != ESP_OK)
             {
@@ -140,6 +142,19 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 							// notify sender task to send ack response
 							signalEvent(EVENT_ACK_MODE_LEDS_PWM);
 						}
+					}
+					else if (strncmp(strCmd, "async_buttons", strlen(strCmd)) == 0)
+					{
+						// manage received change push buttons read mode to async
+						ESP_LOGI(TAG, "cmd: %s", strCmd);
+						signalEvent(EVENT_ACK_ASYNC_BUTTONS);
+
+					}
+					else if (strncmp(strCmd, "no_async_buttons", strlen(strCmd)) == 0)
+					{
+						// manage received change push buttons read mode to poll
+						ESP_LOGI(TAG, "cmd: %s", strCmd);
+						signalEvent(EVENT_ACK_MODE_PUSH_BUTTONS_POLL);
 					}
 					free(strCmd);	// fragmentacion?
 				}
@@ -217,7 +232,8 @@ static void mqtt_sender_task(void *pvParameters)
 {
 	char buffer[100]; //"buffer" para guardar el mensaje. Me debo asegurar que quepa...
 	bool booleano=0;
-	int button1State = 1, button2State = 1;
+	ButtonState button1State, button2State;
+	int button1PollState, button2PollState;
 	Event_t activationEvents = 0;
 
 	while (1)
@@ -238,12 +254,12 @@ static void mqtt_sender_task(void *pvParameters)
 				break;
 			case EVENT_POLL_BUTTONS:
 			{
-				button1State = gpio_get_level(PUSH_BUTTON1);
-				button2State = gpio_get_level(PUSH_BUTTON2);
+				button1PollState = gpio_get_level(PUSH_BUTTON1);
+				button2PollState = gpio_get_level(PUSH_BUTTON2);
 
 				json_printf(&out1, " { button1: %Q, button2: %Q }",
-						(button1State==0?"on":"off"),
-						(button2State==0?"on":"off")
+						(button1PollState==0?"on":"off"),
+						(button2PollState==0?"on":"off")
 				);
 
 				int msg_id = esp_mqtt_client_publish(client, TOPIC_BUTTONS, buffer, 0, 0, 0);
@@ -276,7 +292,41 @@ static void mqtt_sender_task(void *pvParameters)
 				uint32_t last = adc_reader_lastReading();
 				json_printf(&out1," { last_reading: %d }", last);
 				int msg_id = esp_mqtt_client_publish(client, TOPIC_ADC, buffer, 0, 0, 0);
-				ESP_LOGI(TAG, "sent successful on TOPIC_ADC, msg_id=%d: %s", msg_id, buffer);
+				//ESP_LOGI(TAG, "sent successful on TOPIC_ADC, msg_id=%d: %s", msg_id, buffer);
+			}
+				break;
+			case EVENT_ACK_ASYNC_BUTTONS:
+			{
+				// Start async mode
+				startAsyncMode();
+
+				json_printf(&out1," { cmd: ack_async_buttons }");
+				int msg_id = esp_mqtt_client_publish(client, TOPIC_COMMAND, buffer, 0, 0, 0);
+				ESP_LOGI(TAG, "sent successful on TOPIC_COMMAND, msg_id=%d: %s", msg_id, buffer);
+			}
+				break;
+			case EVENT_PUSHBUTTONS_EDGE:
+			{
+				button1State = getButton1State();
+				button2State = getButton2State();
+
+				json_printf(&out1, " { button1: %Q, button2: %Q }",
+						((button1State == BUTTON_PUSHED)?"on":"off"),
+						((button2State == BUTTON_PUSHED)?"on":"off")
+				);
+
+				int msg_id = esp_mqtt_client_publish(client, TOPIC_BUTTONS, buffer, 0, 0, 0);
+				ESP_LOGI(TAG, "sent successful on TOPIC_BUTTONS, msg_id=%d: %s", msg_id, buffer);
+			}
+				break;
+			case EVENT_ACK_MODE_PUSH_BUTTONS_POLL:
+			{
+				// change to poll mode for buttons
+				stopAsyncMode();
+
+				json_printf(&out1," { cmd: ack_no_async_buttons }");
+				int msg_id = esp_mqtt_client_publish(client, TOPIC_COMMAND, buffer, 0, 0, 0);
+				ESP_LOGI(TAG, "sent successful on TOPIC_COMMAND, msg_id=%d: %s", msg_id, buffer);
 			}
 				break;
 			default:

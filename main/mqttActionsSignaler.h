@@ -16,15 +16,19 @@
 typedef EventBits_t Event_t;
 
 // Eventos para publicacion de mensajes
-#define EVENT_PING_REQ				0x000001
-#define EVENT_POLL_BUTTONS			0x000002
-#define EVENT_ACK_MODE_LEDS_GPIO	0x000004
-#define EVENT_ACK_MODE_LEDS_PWM		0X000008
-#define EVENT_ADC_SEND_MEASURE		0x000010
+#define EVENT_PING_REQ						0x000001
+#define EVENT_POLL_BUTTONS					0x000002
+#define EVENT_ACK_MODE_LEDS_GPIO			0x000004
+#define EVENT_ACK_MODE_LEDS_PWM				0X000008
+#define EVENT_ADC_SEND_MEASURE				0x000010
+#define EVENT_ACK_ASYNC_BUTTONS				0x000020
+#define EVENT_PUSHBUTTONS_EDGE				0x000040
+#define EVENT_ACK_MODE_PUSH_BUTTONS_POLL	0X000080
 
 
 esp_err_t initActionsSignaler();
 void signalEvent(Event_t event);
+BaseType_t signalEventFromISR(Event_t event, BaseType_t* xHigherPriorityTaskWoken);
 EventBits_t waitForRegisteredEvents();
 
 
