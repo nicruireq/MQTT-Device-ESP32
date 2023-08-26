@@ -39,11 +39,15 @@ void configurePushButtons(void)
 	// config pins as inputs with actives pull-ups
 	gpio_pad_select_gpio(PUSH_BUTTON1);
 	gpio_set_direction(PUSH_BUTTON1, GPIO_MODE_INPUT);
+#if (PUSH_BUTTON1 < 34)
 	gpio_set_pull_mode(PUSH_BUTTON1, GPIO_PULLUP_ONLY);
+#endif
 
 	gpio_pad_select_gpio(PUSH_BUTTON2);
 	gpio_set_direction(PUSH_BUTTON2, GPIO_MODE_INPUT);
+#if (PUSH_BUTTON2 < 34)
 	gpio_set_pull_mode(PUSH_BUTTON2, GPIO_PULLUP_ONLY);
+#endif
 }
 
 
@@ -183,20 +187,22 @@ esp_err_t startAsyncMode(void)
 	}
 
 	/**
-	 * Configure pin of button 1 and 2 as input with pull-up
+	 * Configure pin of button 1 and 2 as input (with pull-up -> only when gpios < 34)
 	 * and falling edge interrupt
 	 */
 	io_conf.intr_type = GPIO_INTR_ANYEDGE;
 	io_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL(PUSH_BUTTON1)
 							| GPIO_INPUT_PIN_SEL(PUSH_BUTTON2);
 	io_conf.mode = GPIO_MODE_INPUT;
+#if ((PUSH_BUTTON1<34) && (PUSH_BUTTON2<34))
 	io_conf.pull_up_en = 1;
 	io_conf.pull_down_en = 0;
+#else
+	io_conf.pull_up_en = 0;
+	io_conf.pull_down_en = 0;
+#endif
 	gpio_config(&io_conf);
 
-	// Equal for button 2
-	//io_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL(PUSH_BUTTON2);
-	//gpio_config(&io_conf);
 	// Install ISR driver that allows per-pin GPIO interrupt handlers
 	if ( (ret = gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT)) != ESP_OK)
 	{

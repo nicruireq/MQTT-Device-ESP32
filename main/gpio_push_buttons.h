@@ -17,9 +17,9 @@
 #include "freertos/queue.h"
 
 // Pin IO26
-#define PUSH_BUTTON1	26
+#define PUSH_BUTTON1	34
 // Pin IO27
-#define PUSH_BUTTON2	27
+#define PUSH_BUTTON2	35
 // bit mask for pin
 #define GPIO_INPUT_PIN_SEL(IOP)  ((1ULL<<(IOP)))
 

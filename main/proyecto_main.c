@@ -177,8 +177,8 @@ void app_main(void)
     init_MisComandos();
 
     //Inicializa el ADC... 12bits con rango de 3,6V (atenuaci�n 11dB)
-    adc1_config_width(ADC_WIDTH_BIT_12);
-    adc1_config_channel_atten(ADC_CHANNEL_6, ADC_ATTEN_DB_11); //GPIO34 if ADC1. Rango de 3,6 V
+    //adc1_config_width(ADC_WIDTH_BIT_12);
+    //adc1_config_channel_atten(ADC_CHANNEL_6, ADC_ATTEN_DB_11); //GPIO34 if ADC1. Rango de 3,6 V
 
 
     //Inicializa el LCD y lanza la aplicacion reloj
