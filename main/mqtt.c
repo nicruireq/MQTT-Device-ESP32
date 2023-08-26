@@ -22,6 +22,7 @@
 #include "gpio_push_buttons.h"
 #include "mqttActionsSignaler.h"
 #include "adc_reader.h"
+#include "temperatureService.h"
 
 //FROZEN JSON parsing/fotmatting library header
 #include "frozen.h"
@@ -156,6 +157,23 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 						ESP_LOGI(TAG, "cmd: %s", strCmd);
 						signalEvent(EVENT_ACK_MODE_PUSH_BUTTONS_POLL);
 					}
+					else if (strncmp(strCmd, "start_temp", strlen(strCmd)) == 0)
+					{
+						// manage start temperature measurement with certain perioricity
+						// get interval from json data
+						int interval;
+						if (json_scanf(event->data, event->data_len, "{ cmd: %d}", &interval) == 1)
+						{
+							temperatureServiceStartTimer(interval);	// should be in sender on event ack...
+							signalEvent(EVENT_ACK_START_TEMP);
+						}
+					}
+					else if (strncmp(strCmd, "stop_temp", strlen(strCmd)) == 0)
+					{
+						// manage stop temperature measurement
+						signalEvent(EVENT_ACK_STOP_TEMP);
+					}
+
 					free(strCmd);	// fragmentacion?
 				}
         	}
@@ -329,26 +347,37 @@ static void mqtt_sender_task(void *pvParameters)
 				ESP_LOGI(TAG, "sent successful on TOPIC_COMMAND, msg_id=%d: %s", msg_id, buffer);
 			}
 				break;
+			case EVENT_ACK_START_TEMP:
+			{
+				json_printf(&out1," { cmd: ack_start_temp }");
+				int msg_id = esp_mqtt_client_publish(client, TOPIC_COMMAND, buffer, 0, 0, 0);
+				ESP_LOGI(TAG, "sent successful on TOPIC_COMMAND, msg_id=%d: %s", msg_id, buffer);
+			}
+				break;
+			case EVENT_ACK_STOP_TEMP:
+			{
+				if (temperatureServiceStopTimer() == ESP_OK)
+				{
+					json_printf(&out1," { cmd: ack_stop_temp }");
+					int msg_id = esp_mqtt_client_publish(client, TOPIC_COMMAND, buffer, 0, 0, 0);
+					ESP_LOGI(TAG, "sent successful on TOPIC_COMMAND, msg_id=%d: %s", msg_id, buffer);
+				}
+			}
+				break;
+			case EVENT_TEMPERATURE:
+			{
+				float temp = temperatureServiceGetLastReading();
+				json_printf(&out1, "{ grades: %.3f}", temp);
+				int msg_id = esp_mqtt_client_publish(client, TOPIC_TEMP, buffer, 0, 0, 0);
+				ESP_LOGI(TAG, "sent successful on TOPIC_TEMP, msg_id=%d: %s", msg_id, buffer);
+			}
+				break;
 			default:
 				break;
 		}
 
 	}
 
-//	while (1)
-//	{
-//		vTaskDelay(configTICK_RATE_HZ);
-//		struct json_out out1 = JSON_OUT_BUF(buffer, sizeof(buffer)); // Inicializa la estructura que gestiona el buffer.
-//																	// Hay que hacerlo cada vez para empezar a rellenar desde el principio
-//																	// si quiero acumular varios "printf" en la misma cadena, no reinicio out1....
-//		json_printf(&out1," { button: %B }",booleano);
-//		booleano=!booleano;
-//
-//		int msg_id = esp_mqtt_client_publish(client, MQTT_TOPIC_PUBLISH_BASE, buffer, 0, 0, 0); //al utilizar la biblioteca Frozen, buffer es una cadena correctamente terminada con el caracter 0.
-//																								//as� que puedo no indicar la longitud (cuarto par�metro vale 0).
-//																								// Si fuese un puntero a datos binarios arbitr�rios, tendr�a que indicar la longitud de los datos en el cuarto par�metro de la funci�n.
-//		ESP_LOGI(TAG, "sent successful, msg_id=%d: %s", msg_id, buffer);
-//	}
 }
 
 esp_err_t mqtt_app_start(const char* url)

@@ -17,6 +17,7 @@
 #define TOPIC_BUTTONS		MQTT_TOPIC_SUBSCRIBE_BASE "/BUTTONS"
 #define TOPIC_ADC		MQTT_TOPIC_SUBSCRIBE_BASE "/ADC"
 #define TOPIC_LWT		MQTT_TOPIC_SUBSCRIBE_BASE "/BOARD/STATUS"
+#define TOPIC_TEMP			MQTT_TOPIC_SUBSCRIBE_BASE "/TEMP"
 
 #define LWT_MESSAGE		"{ \"status\": \"died\" }"
 #define MSG_ALIVE		"{ \"status\": \"alive\" }"

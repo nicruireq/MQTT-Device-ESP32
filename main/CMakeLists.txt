@@ -1,4 +1,7 @@
-idf_component_register(SRCS "proyecto_main.c" "miscomandos.c" "wifi.c" "tcp_server.c" "tft_demo.c" "gpio_leds.c" "frozen.c" "mqtt.c" "bluetooth.c" "gpio_push_buttons.c" "mqttActionsSignaler.c" "adc_reader.c"					
+idf_component_register(SRCS "proyecto_main.c" "miscomandos.c" "wifi.c" "tcp_server.c" "tft_demo.c" 
+							"gpio_leds.c" "frozen.c" "mqtt.c" "bluetooth.c" "gpio_push_buttons.c" 
+							"mqttActionsSignaler.c" "adc_reader.c" "i2c_master.c" "ds1621driver.c"	
+							"temperatureService.c"			
      INCLUDE_DIRS "."                    	
 )
 

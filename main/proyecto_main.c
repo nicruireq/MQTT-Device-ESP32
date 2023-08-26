@@ -39,6 +39,8 @@
 #include "mqtt.h"
 #include "bluetooth.h"
 
+#include "temperatureService.h"
+
 //TAG para los mensajes de consola
 static const char *TAG = "example";
 
@@ -180,6 +182,8 @@ void app_main(void)
     //adc1_config_width(ADC_WIDTH_BIT_12);
     //adc1_config_channel_atten(ADC_CHANNEL_6, ADC_ATTEN_DB_11); //GPIO34 if ADC1. Rango de 3,6 V
 
+    // Start temperature sensor service
+    temperatureServiceConfig();
 
     //Inicializa el LCD y lanza la aplicacion reloj
     tft_launch_demo();
