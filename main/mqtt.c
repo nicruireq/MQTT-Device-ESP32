@@ -164,7 +164,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 						int interval;
 						if (json_scanf(event->data, event->data_len, "{ interval: %d}", &interval))
 						{
-							temperatureServiceStartTimer(interval);	// should be in sender on event ack...
+							temperatureServiceStart(interval);	// should be in sender on event ack...
 							signalEvent(EVENT_ACK_START_TEMP);
 						}
 					}
@@ -356,18 +356,18 @@ static void mqtt_sender_task(void *pvParameters)
 				break;
 			case EVENT_ACK_STOP_TEMP:
 			{
-				if (temperatureServiceStopTimer() == ESP_OK)
-				{
-					json_printf(&out1," { cmd: ack_stop_temp }");
-					int msg_id = esp_mqtt_client_publish(client, TOPIC_COMMAND, buffer, 0, 0, 0);
-					ESP_LOGI(TAG, "sent successful on TOPIC_COMMAND, msg_id=%d: %s", msg_id, buffer);
-				}
+				temperatureServiceStop();
+				json_printf(&out1, " { cmd: ack_stop_temp }");
+				int msg_id = esp_mqtt_client_publish(client, TOPIC_COMMAND, buffer,
+						0, 0, 0);
+				ESP_LOGI(TAG, "sent successful on TOPIC_COMMAND, msg_id=%d: %s",
+						msg_id, buffer);
 			}
 				break;
 			case EVENT_TEMPERATURE:
 			{
 				float temp = temperatureServiceGetLastReading();
-				json_printf(&out1, "{ grades: %.3f}", temp);
+				json_printf(&out1, "{ grades: %.3f }", temp);
 				int msg_id = esp_mqtt_client_publish(client, TOPIC_TEMP, buffer, 0, 0, 0);
 				ESP_LOGI(TAG, "sent successful on TOPIC_TEMP, msg_id=%d: %s", msg_id, buffer);
 			}

@@ -12,7 +12,7 @@
 
 //Include FreeRTOS headers
 #include "freertos/FreeRTOS.h"
-#include "freertos/timers.h"
+#include "freertos/task.h"
 
 #define SDA_PIN		GPIO_NUM_26
 #define SCL_PIN		GPIO_NUM_27
@@ -21,8 +21,8 @@
 #define MIN_INTERVAL_MS		1000
 
 esp_err_t temperatureServiceConfig();
-esp_err_t temperatureServiceStartTimer(int milliseconds);
-esp_err_t temperatureServiceStopTimer();
+esp_err_t temperatureServiceStart(int milliseconds);
+void temperatureServiceStop();
 float temperatureServiceGetLastReading();
 
 #endif /* MAIN_TEMPERATURESERVICE_H_ */

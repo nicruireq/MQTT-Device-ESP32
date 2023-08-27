@@ -13,34 +13,17 @@
 #include "esp_log.h"
 
 static const char * TAG = "TEMPERATURE_SERVICE";
+//
+//// to hold handle to the created timer
+//TimerHandle_t xTimer;
+//
+//// static space to store state for soft timer
+//StaticTimer_t xTimerBuffer;
 
-// to hold handle to the created timer
-TimerHandle_t xTimer;
-
-// static space to store state for soft timer
-StaticTimer_t xTimerBuffer;
+static TaskHandle_t tempTaskHandler = NULL;
 
 // holds the last temperature reading
 static float lastTemp = 0.0;
-
-
-/**
- * This callback is called everytime the timer expires
- */
-static void vTimerCallback( TimerHandle_t xTimer )
-{
-	esp_err_t ret = ds1621_read_temperature_high_resolution(&lastTemp);
-	if (ret != ESP_OK)
-	{
-		ESP_LOGE(TAG, "Temperature reading error: %s", esp_err_to_name(ret));
-	}
-	else
-	{
-		ESP_LOGI(TAG, "Temp CALLBACK - lastTemp = %f", lastTemp);
-		// notify mqtt sender and return
-		signalEvent(EVENT_TEMPERATURE);
-	}
-}
 
 
 /**
@@ -73,16 +56,6 @@ esp_err_t temperatureServiceConfig()
 	}
 	// don't continue until command sequence is completed
 
-	xTimer = xTimerCreateStatic("TemperatureServiceTimer",
-					pdMS_TO_TICKS(MIN_INTERVAL_MS), pdTRUE, (void *) 0,
-					vTimerCallback, &xTimerBuffer
-				);
-	if (xTimer == NULL)
-	{
-		ESP_LOGE(TAG, "The timer was not created");
-		ret = ESP_FAIL;
-	}
-
 	return ret;
 }
 
@@ -95,26 +68,73 @@ float temperatureServiceGetLastReading()
 }
 
 
-esp_err_t temperatureServiceStartTimer(int milliseconds)
+/**
+ * Task for temperature reading each interval
+ */
+static void vTaskTemp( void * pvParameters )
 {
+	int milliseconds;
+	TickType_t xLastWakeTime;
+
+	while (1)
+	{
+		milliseconds = (int) pvParameters;
+		// simulate timer functionality
+		xLastWakeTime=xTaskGetTickCount();
+		vTaskDelayUntil(&xLastWakeTime,  pdMS_TO_TICKS(milliseconds));
+
+		esp_err_t ret = ds1621_read_temperature_high_resolution(&lastTemp);
+		if (ret != ESP_OK)
+		{
+			ESP_LOGE(TAG, "Temperature reading error: %s", esp_err_to_name(ret));
+		}
+		else
+		{
+			// notify mqtt sender and return
+			signalEvent(EVENT_TEMPERATURE);
+		}
+	}
+}
+
+
+esp_err_t temperatureServiceStart(int milliseconds)
+{
+	esp_err_t ret = ESP_OK;
+
 	if (milliseconds < MIN_INTERVAL_MS)
 	{
 		ESP_LOGE(TAG, "milliseconds parameter is too low");
 		return ESP_FAIL;
 	}
 
-	// Start the timer.  No block time is specified
-	if (xTimerChangePeriod(xTimer, pdMS_TO_TICKS(milliseconds), 0) != pdPASS)
+	if (tempTaskHandler == NULL)
 	{
-		// The timer could not be set into the Active state
-		return ESP_FAIL;
+		// create task and set interval
+		if (xTaskCreate(vTaskTemp, "TempSrvTask", 2048, (void*)milliseconds, 4, &tempTaskHandler) != pdPASS)
+		{
+			ESP_LOGE(TAG, "Task for temperature service could not be allocated");
+			ret = ESP_FAIL;
+		}
+		// Is not thread-safe
+		lastTemp = milliseconds;
+	}
+	else
+	{
+		// if task is already created, change interval
+		vTaskSuspend(tempTaskHandler);
+		lastTemp = milliseconds;
+		vTaskResume(tempTaskHandler);
 	}
 
-	return ESP_OK;
+	return ret;
 }
 
 
-esp_err_t temperatureServiceStopTimer()
+void temperatureServiceStop()
 {
-	return xTimerStop(xTimer, 0);
+	if (tempTaskHandler != NULL)
+	{
+		vTaskDelete(tempTaskHandler);
+		tempTaskHandler = NULL;
+	}
 }
