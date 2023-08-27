@@ -183,7 +183,8 @@ void app_main(void)
     //adc1_config_channel_atten(ADC_CHANNEL_6, ADC_ATTEN_DB_11); //GPIO34 if ADC1. Rango de 3,6 V
 
     // Start temperature sensor service
-    temperatureServiceConfig();
+    ret = temperatureServiceConfig();
+    ESP_ERROR_CHECK(ret);
 
     //Inicializa el LCD y lanza la aplicacion reloj
     tft_launch_demo();

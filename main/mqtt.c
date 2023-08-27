@@ -162,7 +162,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 						// manage start temperature measurement with certain perioricity
 						// get interval from json data
 						int interval;
-						if (json_scanf(event->data, event->data_len, "{ cmd: %d}", &interval) == 1)
+						if (json_scanf(event->data, event->data_len, "{ interval: %d}", &interval))
 						{
 							temperatureServiceStartTimer(interval);	// should be in sender on event ack...
 							signalEvent(EVENT_ACK_START_TEMP);

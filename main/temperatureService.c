@@ -36,6 +36,7 @@ static void vTimerCallback( TimerHandle_t xTimer )
 	}
 	else
 	{
+		ESP_LOGI(TAG, "Temp CALLBACK - lastTemp = %f", lastTemp);
 		// notify mqtt sender and return
 		signalEvent(EVENT_TEMPERATURE);
 	}
@@ -106,7 +107,6 @@ esp_err_t temperatureServiceStartTimer(int milliseconds)
 	if (xTimerChangePeriod(xTimer, pdMS_TO_TICKS(milliseconds), 0) != pdPASS)
 	{
 		// The timer could not be set into the Active state
-		ESP_LOGE(TAG, "Can not send to the Timer command queue");
 		return ESP_FAIL;
 	}
 
