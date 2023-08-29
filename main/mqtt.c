@@ -65,10 +65,21 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
 			msg_id = esp_mqtt_client_subscribe(client, TOPIC_ADC, 0);
 			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+			msg_id = esp_mqtt_client_subscribe(client, TOPIC_TEMP, 0);
+			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+			msg_id = esp_mqtt_client_subscribe(client, TOPIC_WEATHER, 0);
+			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
 
 			// publish message with retain in LWT topic (board is alive)
 			msg_id = esp_mqtt_client_publish(client, TOPIC_LWT, MSG_ALIVE, 0, 0, RETAIN_ON);
-			ESP_LOGE(TAG, "Alive message not published on LWT topic, msg_id=%d", msg_id);
+			if (msg_id != ESP_FAIL)
+			{
+				ESP_LOGI(TAG, "Alive message has been published on LWT topic msg_id=%d", msg_id);
+			}
+			else
+			{
+				ESP_LOGE(TAG, "Alive message not published on LWT topic, msg_id=%d", msg_id);
+			}
 
             //xTaskCreate(mqtt_sender_task, "mqtt_sender", 4096, NULL, 5, &senderTaskHandler); //Crea la tarea MQTT sender
 			xTaskCreatePinnedToCore(mqtt_sender_task, "mqtt_sender", 4096, NULL, 5, &senderTaskHandler, 1);
