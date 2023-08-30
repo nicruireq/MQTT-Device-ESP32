@@ -46,10 +46,18 @@ esp_err_t weatherDataChannel_initialize()
  */
 esp_err_t weatherDataChannel_send(WeatherData* data)
 {
-	if ( xQueueSend( queue, (void *) data, 0) != pdTRUE )
+	if ((queue != NULL) && (data != NULL))
+	{
+		if ( xQueueSend( queue, (void *) data, 0) != pdTRUE )
+		{
+			return ESP_FAIL;
+		}
+	}
+	else
 	{
 		return ESP_FAIL;
 	}
+
 	return ESP_OK;
 }
 
@@ -62,7 +70,14 @@ esp_err_t weatherDataChannel_send(WeatherData* data)
  */
 esp_err_t weatherDataChannel_receive(WeatherData* data)
 {
-	if( xQueueReceive( queue, (void *) data, 0) != pdPASS )
+	if ((queue != NULL) && (data != NULL))
+	{
+		if( xQueueReceive( queue, (void *) data, portMAX_DELAY ) != pdPASS )
+		{
+			return ESP_FAIL;
+		}
+	}
+	else
 	{
 		return ESP_FAIL;
 	}
@@ -107,3 +122,23 @@ esp_err_t weatherDataChannel_parse(char *data, int data_len, WeatherData* weathe
 
 	return ret;
 }
+
+/**
+ * When you finish to process data received with
+ * weatherDataChannel_receive you must call this
+ * function with the argument pointing to the
+ * WeatherData buffer that you have used,
+ * if the buffer was fill with the function
+ * weatherDataChannel_parse(...) because
+ * json_scanf from frozen library uses malloc
+ * to allocate parsed string values
+ */
+void weatherDataChannel_clean(WeatherData* data)
+{
+	if (data != NULL)
+	{
+		free(data->city);
+		free(data->description);
+	}
+}
+

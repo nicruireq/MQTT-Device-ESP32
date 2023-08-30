@@ -258,10 +258,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         			ESP_LOGI(TAG, "Weather data successfully added to queue");
         		else
         			ESP_LOGI(TAG, "Weather data coul not be allocated in the queue");
-
-        		// frozen lib malloc-ed strings then we need to do free
-        		free(wdata.city);
-        		free(wdata.description);
         	}
 
 		}

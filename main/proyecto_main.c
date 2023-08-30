@@ -31,11 +31,10 @@
 #include "lwip/sockets.h"
 #include "lwip/sys.h"
 #include <lwip/netdb.h>
+#include <tft_weather.h>
 
 #include "wifi.h"
 #include "tcp_server.h"
-#include "tft_demo.h"
-
 #include "mqtt.h"
 #include "bluetooth.h"
 

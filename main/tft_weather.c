@@ -1,4 +1,4 @@
-/* TFT demo
+/* TFT Weather
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -27,7 +27,7 @@
 
 #include "esp_spiffs.h"
 
-
+#include "weatherDataChannel.h"
 
 
 
@@ -182,6 +182,12 @@ static void disp_header(char *info)
 	TFT_setclipwin(0,TFT_getfontheight()+9, _width-1, _height-TFT_getfontheight()-10);
 }
 
+static void disp_weatherData(WeatherData* info)
+{
+	//TFT_fillRect(TFT_getfontheight()+10, 0.5*_width, _width-0.1*_width, _height - (TFT_getfontheight()+20), TFT_WHITE);
+	TFT_fillRect(10, 0, _width-0.1*_width, _height - (TFT_getfontheight()+20), TFT_WHITE);
+}
+
 //---------------------------------------------
 static void update_header(char *hdr, char *ftr)
 {
@@ -215,10 +221,6 @@ static void update_header(char *hdr, char *ftr)
 
 	TFT_restoreClipWin();
 }
-
-
-
-
 
 
 //===============
@@ -266,55 +268,62 @@ void tft_demo() {
 	doprint = 1;
 
 	//Imprime la cabecera
-	disp_header("ESP32 TFT DEMO CLOCK");
-	TFT_setFont(DEFAULT_FONT, NULL);
+	disp_header("WEATHER INFO");
+	TFT_setFont(UBUNTU16_FONT, NULL);
 
-	TFT_setFont(COMIC24_FONT, NULL);
-	int tempy = TFT_getfontheight() + 20;
-	_fg = TFT_ORANGE;
-	TFT_print("HORA", CENTER, 12 ); //(dispWin.y2-dispWin.y1)/2 - tempy);
+	// draws white window
+	TFT_fillRect(10, 0, _width-0.1*_width, _height - (TFT_getfontheight()+20), TFT_WHITE);
+	// sets new window coordinates aligned to the window draw
+	//TFT_setclipwin(10, 0, 10+_width-0.1*_width, _height - (TFT_getfontheight()+20) );
+	// save windows to be able to clear later
+	TFT_saveClipWin();
 
-	//Muestra la imagen (almacenada en SPIFFS)
-	if (spiffs_is_mounted) {
-		// ** Show scaled (1/8, 1/4, 1/2 size) JPG images
+	//Task that shows the incoming weather data on screen
+	int fontSize = TFT_getfontheight();
+	int margin = 0.2 * fontSize;
+	int hspace = fontSize + margin;
+	WeatherData wdata;
+	while (1)
+	{
+		x=20, y=10;
+		_bg = TFT_WHITE;
+		_fg = TFT_DARKGREY;
+		// Print new data in the screen
+		if ( weatherDataChannel_receive(&wdata) == ESP_OK)
+		{
+			// clean window for incoming data
+			TFT_fillWindow(TFT_WHITE);
 
-		TFT_jpg_image(CENTER, BOTTOM, 1, "/spiffs/images/test4.jpg", NULL, 0);
-	}
+			sprintf(tmp_buff, "El tiempo hoy en %s:\n", wdata.city);
+			//TFT_print("El tiempo hoy en Cadiz:\n", x , y  );
+			TFT_print(tmp_buff, x , y  );
 
+			sprintf(tmp_buff, "%s,\n", wdata.description);
+			//TFT_print("Cielo despejado,\n", x, y+hspace  );
+			TFT_print(tmp_buff, x, y+hspace  );
 
-	int ms = 0;
-	int last_sec = 0;
-	uint32_t ctime = clock();
+			sprintf(tmp_buff, "con maximas de %2.2fºC\n", wdata.temp_max);
+			//TFT_print("con maximas de 26ºC\n", x, y+hspace*2  );
+			TFT_print(tmp_buff, x, y+hspace*2  );
 
-	n = 0;
+			sprintf(tmp_buff, "y minimas de %2.2fºC\n", wdata.temp_min);
+			//TFT_print("y minimas de 18ºC.\n", x, y+hspace*3  );
+			TFT_print(tmp_buff, x, y+hspace*3  );
 
-	//Tarea que muestra la hora....
+			sprintf(tmp_buff, "Sensacion termica de %2.2fºC.\n", wdata.feels_like);
+			//TFT_print("Sensacion termica de 27ºC.\n", x, y+hspace*4   );
+			TFT_print(tmp_buff, x, y+hspace*4 );
 
-	while (1) {
-		y = 40;
-		ms = clock() - ctime;
-		time(&time_now);
-		tm_info = localtime(&time_now);
-		if (tm_info->tm_sec != last_sec) {
-			last_sec = tm_info->tm_sec;
-			ms = 0;
-			ctime = clock();
+			sprintf(tmp_buff, "Humedad relativa del %d %%.\n", (int)wdata.humidity);
+			//TFT_print("Humedad relativa del 55%.\n", x, y+hspace*5  );
+			TFT_print(tmp_buff, x, y+hspace*5  );
+
+			sprintf(tmp_buff, "Y rachas de viento de %3.2f Km/h.\n", wdata.wind_speed);
+			TFT_print(tmp_buff, x, y+hspace*6  );
+			weatherDataChannel_clean(&wdata);
 		}
 
-		_fg = TFT_CYAN;
-		TFT_setFont(FONT_7SEG, NULL);
-		set_7seg_font_atrib(8, 1, 1, TFT_DARKGREY);
-		sprintf(tmp_buff, "%02d:%02d:%02d",tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
-		TFT_clearStringRect(CENTER, y, tmp_buff);
-		TFT_print(tmp_buff, CENTER, y);
-		n++;
-
-		TFT_setFont(UBUNTU16_FONT, NULL);
-		_fg = TFT_GREEN;
-		sprintf(tmp_buff, "Read speed: %5.2f MHz", (float)max_rdclock/1000000.0);
-		TFT_print(tmp_buff, CENTER, LASTY+TFT_getfontheight() + 12);
-
-		vTaskDelay(configTICK_RATE_HZ);
+		//vTaskDelay(configTICK_RATE_HZ);
 	}
 
 }
@@ -542,6 +551,6 @@ static void tft_demo_task(void *pvParameters)
 
 void tft_launch_demo(void)
 {
-	//Crea la tarea que est� justo arriba
+	//Crea la tarea que est� justo arriba
 	xTaskCreatePinnedToCore(tft_demo_task, "tftTask", 2*4096, NULL, 4, NULL,1); //Crea la tarea
 }
