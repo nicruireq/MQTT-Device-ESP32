@@ -40,6 +40,7 @@
 #include "bluetooth.h"
 
 #include "temperatureService.h"
+#include "weatherDataChannel.h"
 
 //TAG para los mensajes de consola
 static const char *TAG = "example";
@@ -177,6 +178,11 @@ void app_main(void)
     esp_console_register_help_command();
     register_system();
     init_MisComandos();
+
+    // Configure queue for recv weather data and TFT
+    // painting
+    ret = weatherDataChannel_initialize();
+    ESP_ERROR_CHECK(ret);
 
     //Inicializa el ADC... 12bits con rango de 3,6V (atenuaci�n 11dB)
     //adc1_config_width(ADC_WIDTH_BIT_12);

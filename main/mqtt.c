@@ -23,6 +23,7 @@
 #include "mqttActionsSignaler.h"
 #include "adc_reader.h"
 #include "temperatureService.h"
+#include "weatherDataChannel.h"
 
 //FROZEN JSON parsing/fotmatting library header
 #include "frozen.h"
@@ -240,6 +241,27 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 						gpio_set_level(BLINK_GPIO_3, ledIncomingState);
 					}
         		}
+        	}
+
+        	// Handle data subscribed on topic WEATHER
+        	if ( strncmp(TOPIC_WEATHER, topic_name, strlen(TOPIC_WEATHER)) == 0 )
+        	{
+        		WeatherData wdata;
+        		esp_err_t err = weatherDataChannel_parse(event->data, event->data_len, &wdata);
+        		if (err == ESP_OK)
+        			ESP_LOGI(TAG, "Json parsing of weather data success");
+        		else
+        			ESP_LOGE(TAG, "Json parsing of weather data failure");
+        		// send data to printing in TFT
+        		err = weatherDataChannel_send(&wdata);
+        		if ( err == ESP_OK )
+        			ESP_LOGI(TAG, "Weather data successfully added to queue");
+        		else
+        			ESP_LOGI(TAG, "Weather data coul not be allocated in the queue");
+
+        		// frozen lib malloc-ed strings then we need to do free
+        		free(wdata.city);
+        		free(wdata.description);
         	}
 
 		}
