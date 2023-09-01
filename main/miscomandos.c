@@ -32,7 +32,7 @@ static int Cmd_led(int argc, char **argv)
 {
 	if (argc == 1)
 	{
-		//Si los parámetros no son suficientes, muestro la ayuda
+		//Si los parï¿½metros no son suficientes, muestro la ayuda
 		printf(" LED [on|off]\r\n");
 	}
 	else
@@ -50,7 +50,7 @@ static int Cmd_led(int argc, char **argv)
 		}
 		else
 		{
-			//Si el parámetro no es correcto, muestro la ayuda
+			//Si el parï¿½metro no es correcto, muestro la ayuda
 			printf(" LED [on|off]\r\n");
 		}
 
@@ -77,7 +77,7 @@ static int Cmd_blink(int argc, char **argv)
 
 	if (argc != 3)
 	{
-		//Si los parámetros no son suficientes, muestro la ayuda
+		//Si los parï¿½metros no son suficientes, muestro la ayuda
 		printf(" blink [veces] [periodo]\r\n");
 	}
 	else
@@ -87,7 +87,7 @@ static int Cmd_blink(int argc, char **argv)
 
 		if ((veces<=0)||(periodo<=0))
 		{
-			//Si el parámetro no es correcto, muestro la ayuda
+			//Si el parï¿½metro no es correcto, muestro la ayuda
 			printf(" blink [veces] [periodo]\r\n");
 		}
 		else
@@ -139,7 +139,7 @@ static int Cmd_mode(int argc, char **argv)
 {
 	if (argc == 1)
 	{
-		//Si los parámetros no son suficientes, muestro la ayuda
+		//Si los parï¿½metros no son suficientes, muestro la ayuda
 		printf(" mode [gpio|pwm]\r\n");
 	}
 	else
@@ -158,7 +158,7 @@ static int Cmd_mode(int argc, char **argv)
 		}
 		else
 		{
-			//Si el parámetro no es correcto, muestro la ayuda
+			//Si el parï¿½metro no es correcto, muestro la ayuda
 			printf(" mode [gpio|pwm]\r\n");
 		}
 
@@ -183,7 +183,7 @@ static int Cmd_rgb(int argc, char **argv)
 {
 	if (argc !=4)
 	{
-		//Si los parámetros no son suficientes, muestro la ayuda
+		//Si los parï¿½metros no son suficientes, muestro la ayuda
 		printf(" rgb <rojo> <verde> <azul>]\r\n");
 	}
 	else
@@ -216,7 +216,7 @@ static int Cmd_wifi(int argc, char **argv)
 {
 	if (argc != 2)
 	{
-		//Si los parámetros no son suficientes, muestro la ayuda
+		//Si los parï¿½metros no son suficientes, muestro la ayuda
 		printf(" wifi [AP|STA]\r\n");
 	}
 	else
@@ -235,7 +235,7 @@ static int Cmd_wifi(int argc, char **argv)
 		}
 		else
 		{
-			//Si el parámetro no es correcto, muestro la ayuda
+			//Si el parï¿½metro no es correcto, muestro la ayuda
 			printf(" wifi [AP|STA]\r\n");
 		}
 
@@ -260,7 +260,7 @@ static int Cmd_blescan(int argc, char **argv)
 {
 	if (argc != 2)
 	{
-		//Si los parámetros no son suficientes, muestro la ayuda
+		//Si los parï¿½metros no son suficientes, muestro la ayuda
 		printf(" blescan [on|off]\r\n");
 	}
 	else
@@ -269,7 +269,7 @@ static int Cmd_blescan(int argc, char **argv)
 		if (0==strncmp( argv[1], "on",2))
 		{
 			printf("BLE scan on\r\n");
-			bluetooth_start_scan();
+			bluetooth_start_scan(BLE_SCAN_FROM_TERMINAL);
 		}
 		else if (0==strncmp( argv[1], "off",3))
 		{
@@ -279,7 +279,7 @@ static int Cmd_blescan(int argc, char **argv)
 		}
 		else
 		{
-			//Si el parámetro no es correcto, muestro la ayuda
+			//Si el parï¿½metro no es correcto, muestro la ayuda
 			printf(" blescan [on|off]\r\n");
 		}
 
@@ -305,7 +305,7 @@ static int Cmd_mqtt(int argc, char **argv)
 {
 	if (argc != 2)
 	{
-		//Si los parámetros no son suficientes, muestro la ayuda
+		//Si los parï¿½metros no son suficientes, muestro la ayuda
 		printf(" mqtt [uri]\r\n");
 	}
 	else

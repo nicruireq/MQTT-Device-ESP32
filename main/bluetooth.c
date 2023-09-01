@@ -9,6 +9,7 @@
 #include "esp_blufi_api.h"
 
 #include "bluetooth.h"
+#include "mqttActionsSignaler.h"
 
 #define BT_BD_ADDR_STR         "%02x:%02x:%02x:%02x:%02x:%02x"
 #define BT_BD_ADDR_HEX(addr)   addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]
@@ -21,6 +22,10 @@ static const char *TAG = "_BLUETOOTH";
 
 static bool scan_ongoing = false;
 static bool adv_ongoing = false;
+
+// To know if scan is started from terminal console
+// or by mqtt request
+static BleDevReq requestSource;
 
 static esp_ble_scan_params_t ble_scan_params = 
 {	
@@ -45,6 +50,9 @@ static esp_ble_adv_data_t adv_data = {
 //	.adv_filter_policy  = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY
 //};
 
+static QueueHandle_t qScannedDevices = NULL;
+
+
 //****************************************************************************
 //      DEFINICIÃ“N DE FUNCIONES
 //****************************************************************************
@@ -54,6 +62,10 @@ static void gap_callback_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 {
 	ESP_LOGI(TAG, "Received a GAP event: %d", event);
 	esp_err_t status = 0;	
+
+	//
+	static int count =0;
+	//
 
 	switch (event) 
 	{
@@ -90,22 +102,66 @@ static void gap_callback_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 			{
 				case ESP_GAP_SEARCH_INQ_RES_EVT:
 				{
-					char address[30];
-					snprintf(address,30, BT_BD_ADDR_STR, BT_BD_ADDR_HEX(param->scan_rst.bda));
-					 ESP_LOGW(TAG, "Device found (bda): %s", address);
-					 ESP_LOGW(TAG, "RSSI                : %d", param->scan_rst.rssi);
-					 ESP_LOGW(TAG, "SCAN LEN: %d RSP LEN. %d",param->scan_rst.adv_data_len,param->scan_rst.scan_rsp_len);
-					 ESP_LOG_BUFFER_HEXDUMP(TAG,param->scan_rst.ble_adv,param->scan_rst.adv_data_len,ESP_LOG_WARN);
-					 ESP_LOG_BUFFER_HEXDUMP(TAG,param->scan_rst.ble_adv+param->scan_rst.adv_data_len,param->scan_rst.scan_rsp_len,ESP_LOG_WARN);
-
-
-
-//					// Scans for the "Complete name" (looking inside the payload buffer)
+					static int i;
 					uint8_t len;
+					uint8_t *data = NULL;
+					BleScanResult scannedDevice;
+					// Initialize name and address field with '/0'
+					memset(scannedDevice.deviceName, 0, BLE_DEVICE_NAME_MAX_SIZE);
+					memset(scannedDevice.address, 0, BLE_DEVICE_ADDR_MAX_SIZE);
+
+					snprintf(scannedDevice.address, BLE_DEVICE_ADDR_MAX_SIZE, BT_BD_ADDR_STR, BT_BD_ADDR_HEX(param->scan_rst.bda));
+
+					scannedDevice.rssi = param->scan_rst.rssi;
+
+					// Scans for the "Complete name" (looking inside the payload buffer)
+					// and allocate a copy of the name
 					if (param->scan_rst.scan_rsp_len)
 					{
-						uint8_t *data = esp_ble_resolve_adv_data(param->scan_rst.ble_adv+param->scan_rst.adv_data_len, ESP_BLE_AD_TYPE_NAME_CMPL, &len);
-						ESP_LOGW(TAG, "len: %d, %.*s", len, len, data);
+						data = esp_ble_resolve_adv_data(
+								param->scan_rst.ble_adv + param->scan_rst.adv_data_len,
+								ESP_BLE_AD_TYPE_NAME_CMPL, &len);
+						// Continue copying adv name of device if it's available
+						if ( (data != NULL) && (len > 0) )
+						{
+							//ESP_LOGI(TAG, "Heap available: %d, len=%d, struc_size=%d", xPortGetFreeHeapSize(), len,
+							//		sizeof(BleScanResult));
+							ESP_LOGI(TAG, "len=%d",len);
+							ESP_LOGI(TAG, "struc_size=%d", sizeof(BleScanResult));
+
+							// copy adv device name in structure and be sure to terminate
+							// the string '\0'
+							if (len < BLE_DEVICE_NAME_MAX_SIZE-1)
+							{
+								strncpy(scannedDevice.deviceName, (const char*)data, len);
+							}
+							else
+							{
+								strncpy(scannedDevice.deviceName, (const char*)data, BLE_DEVICE_NAME_MAX_SIZE-1);
+								scannedDevice.deviceName[BLE_DEVICE_NAME_MAX_SIZE-1] = 0;
+							}
+						}
+					}
+
+					if (requestSource == BLE_SCAN_FROM_TERMINAL)
+					{
+						 ESP_LOGW(TAG, "Device found (bda): %s", scannedDevice.address);
+						 ESP_LOGW(TAG, "RSSI                : %d", scannedDevice.rssi);
+						 ESP_LOGW(TAG, "SCAN LEN: %d RSP LEN. %d",param->scan_rst.adv_data_len,param->scan_rst.scan_rsp_len);
+						 ESP_LOG_BUFFER_HEXDUMP(TAG,param->scan_rst.ble_adv,param->scan_rst.adv_data_len,ESP_LOG_WARN);
+						 ESP_LOG_BUFFER_HEXDUMP(TAG,param->scan_rst.ble_adv+param->scan_rst.adv_data_len,param->scan_rst.scan_rsp_len,ESP_LOG_WARN);
+
+						// Shows the "Complete name"
+						 ESP_LOGW(TAG, "len: %d, %.*s", len, len, data);
+						//ESP_LOGW(TAG, "len: %d, %.*s", BLE_DEVICE_NAME_MAX_SIZE,
+						//		 BLE_DEVICE_NAME_MAX_SIZE, scannedDevice.deviceName);
+					}
+					else if (requestSource == BLE_SCAN_FROM_MQTT)
+					{
+						// drop scanned device data in the queue to be remove later in mqtt sender
+						BaseType_t qerr = xQueueSend(qScannedDevices, (void*)&scannedDevice, 0);
+						if (qerr != pdPASS)
+							ESP_LOGE(TAG, "Queue for scanned devices info is full");
 					}
 
 					break;
@@ -115,6 +171,12 @@ static void gap_callback_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 					// Scan is done.
 					 ESP_LOGW(TAG, "Scan finished");
 					 scan_ongoing=false;
+
+					 if (requestSource == BLE_SCAN_FROM_MQTT)
+					 {
+						 // signal mqtt sender that one scan has finished
+						 signalEvent(EVENT_BLESCAN_FINISHED);
+					 }
 
 //					if(scan_active)
 //					{
@@ -144,6 +206,12 @@ static void gap_callback_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 			{
 				ESP_LOGI(TAG, "Stop scan successfully");
 			}
+
+			if (requestSource == BLE_SCAN_FROM_MQTT)
+			{
+				// signal mqtt sender that one scan has finished
+				signalEvent(EVENT_BLESCAN_FINISHED);
+			}
 		}
 
 		case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
@@ -156,6 +224,12 @@ static void gap_callback_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 			{
 				ESP_LOGI(TAG, "Stop adv successfully");
 			}
+
+			if (requestSource == BLE_SCAN_FROM_MQTT)
+			{
+				// signal mqtt sender that one scan has finished
+				signalEvent(EVENT_BLESCAN_FINISHED);
+			}
 		}
 		break;
 				
@@ -164,17 +238,27 @@ static void gap_callback_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 	}
 } // gap_callback_handler
 
-esp_err_t bluetooth_start_scan(void)
+esp_err_t bluetooth_start_scan(BleDevReq reqType)
 {
-	esp_err_t status;	
-	
-	scan_ongoing = true;
+	esp_err_t status;
 
-	// This function is called to set scan parameters.	
-	status = esp_ble_gap_set_scan_params(&ble_scan_params);
-	if (status != ESP_OK) 
+	if (!scan_ongoing)
 	{
-		ESP_LOGE(TAG, "esp_ble_gap_set_scan_params: rc=%d", status);
+		// critical section
+		scan_ongoing = true;
+		requestSource = reqType;
+
+		// This function is called to set scan parameters.
+		status = esp_ble_gap_set_scan_params(&ble_scan_params);
+		// end critical section
+		if (status != ESP_OK)
+		{
+			ESP_LOGE(TAG, "esp_ble_gap_set_scan_params: rc=%d", status);
+			return ESP_FAIL;
+		}
+	}
+	else
+	{
 		return ESP_FAIL;
 	}
 
@@ -185,9 +269,11 @@ esp_err_t bluetooth_stop_scan(void)
 {
 	esp_err_t status;
 	
+	// critical section
 	scan_ongoing = false;
 	
 	status = esp_ble_gap_stop_scanning();
+	// end critical section
 	if (status != ESP_OK) 
 	{
 		ESP_LOGE(TAG, "esp_ble_gap_stop_scanning: rc=%d", status);
@@ -237,11 +323,17 @@ esp_err_t bluetooth_stop_scan(void)
 //	return ESP_OK ;
 //}
 
+QueueHandle_t bluetooth_getScannedDevicesQueue()
+{
+	return qScannedDevices;
+}
+
+
 esp_err_t bluetooth_init(void)
 {
     esp_err_t status;
 
-    ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT)); //Vamos a utilizar solo el modo BLE, así que liberamos memoria del modo clásico
+    ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT)); //Vamos a utilizar solo el modo BLE, asï¿½ que liberamos memoria del modo clï¿½sico
 
 	// Initialize BT controller to allocate task and other resource. 
 	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
@@ -288,6 +380,16 @@ esp_err_t bluetooth_init(void)
 	}
 
 	ESP_LOGI(TAG, "GAP callback registered");
+
+	// Allocate queue to pass scanned devices info to mqtt sender
+	qScannedDevices = xQueueCreate(BLE_MAX_DISCOVERED_DEVS, sizeof(BleScanResult));
+	if (!qScannedDevices)
+	{
+		ESP_LOGE(TAG, "Queue for scanned devices data could not be allocated");
+		return ESP_FAIL;
+	}
+
+	ESP_LOGI(TAG, "Queue for scanned devices data allocated");
 
 	return ESP_OK;
 }

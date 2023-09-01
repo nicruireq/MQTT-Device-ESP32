@@ -24,6 +24,7 @@
 #include "adc_reader.h"
 #include "temperatureService.h"
 #include "weatherDataChannel.h"
+#include "bluetooth.h"
 
 //FROZEN JSON parsing/fotmatting library header
 #include "frozen.h"
@@ -83,7 +84,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 			}
 
             //xTaskCreate(mqtt_sender_task, "mqtt_sender", 4096, NULL, 5, &senderTaskHandler); //Crea la tarea MQTT sender
-			xTaskCreatePinnedToCore(mqtt_sender_task, "mqtt_sender", 4096, NULL, 5, &senderTaskHandler, 1);
+			xTaskCreatePinnedToCore(mqtt_sender_task, "mqtt_sender", 5120, NULL, 5, &senderTaskHandler, 1);
 
             // Start ADC reader task and all its dependencies
             if (adc_reader_Start() != ESP_OK)
@@ -112,7 +113,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         	strncpy(topic_name,event->topic,event->topic_len);
         	topic_name[event->topic_len]=0; //a�ade caracter de terminacion al final.
 
-        	ESP_LOGI(TAG, "MQTT_EVENT_DATA: Topic %s",topic_name);
+        	//ESP_LOGI(TAG, "MQTT_EVENT_DATA: Topic %s",topic_name);
 
         	// Handle data subscribed on topic COMMAND
         	if (strncmp(TOPIC_COMMAND, topic_name, strlen(TOPIC_COMMAND)) == 0)
@@ -185,6 +186,14 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 						// manage stop temperature measurement
 						signalEvent(EVENT_ACK_STOP_TEMP);
 					}
+					else if (strncmp(strCmd, "ble_scan", strlen(strCmd)) == 0)
+					{
+						// start ble scan
+						esp_err_t err = bluetooth_start_scan(BLE_SCAN_FROM_MQTT);	// i'm not sure if this is a blocking function...
+						if (err != ESP_OK)
+							ESP_LOGE(TAG, "BLE Scan could not be launched");
+					}
+
 
 					free(strCmd);	// fragmentacion?
 				}
@@ -248,21 +257,14 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         	{
         		WeatherData wdata;
         		esp_err_t err = weatherDataChannel_parse(event->data, event->data_len, &wdata);
-        		if (err == ESP_OK)
-        			ESP_LOGI(TAG, "Json parsing of weather data success");
-        		else
-        			ESP_LOGE(TAG, "Json parsing of weather data failure");
+        		if (err != ESP_OK) ESP_LOGE(TAG, "Json parsing of weather data failure");
         		// send data to printing in TFT
         		err = weatherDataChannel_send(&wdata);
-        		if ( err == ESP_OK )
-        			ESP_LOGI(TAG, "Weather data successfully added to queue");
-        		else
-        			ESP_LOGI(TAG, "Weather data coul not be allocated in the queue");
+        		if ( err != ESP_OK ) ESP_LOGI(TAG, "Weather data coul not be allocated in the queue");
         	}
 
 		}
             break;
-
         case MQTT_EVENT_ERROR:
             ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
             break;
@@ -398,7 +400,64 @@ static void mqtt_sender_task(void *pvParameters)
 				float temp = temperatureServiceGetLastReading();
 				json_printf(&out1, "{ grades: %.3f }", temp);
 				int msg_id = esp_mqtt_client_publish(client, TOPIC_TEMP, buffer, 0, 0, 0);
-				ESP_LOGI(TAG, "sent successful on TOPIC_TEMP, msg_id=%d: %s", msg_id, buffer);
+				//ESP_LOGI(TAG, "sent successful on TOPIC_TEMP, msg_id=%d: %s", msg_id, buffer);
+			}
+				break;
+			case EVENT_BLESCAN_FINISHED:
+			{
+				// take all the available elements from scanned ble devices info queue
+				// fill json array and pusblish on topic BLEINFO
+				size_t blBufferSize = 2 + (BLE_MAX_DISCOVERED_DEVS * (SIZE_STR_PRINT_BLE + BLE_DEVICE_ADDR_MAX_SIZE +
+										BLE_DEVICE_NAME_MAX_SIZE + BLE_RSSI_STR_MAX_SIZE));
+
+				char* blBuffer = malloc(blBufferSize);
+				QueueHandle_t queue = bluetooth_getScannedDevicesQueue();
+				if (blBuffer && queue)
+				{
+					BleScanResult tempDev;
+					UBaseType_t numMsg = 0;
+
+					struct json_out blOut = JSON_OUT_BUF(blBuffer, blBufferSize);
+
+					json_printf(&blOut, "[");	// starts json array
+
+					while ( (numMsg = uxQueueMessagesWaiting(queue)) > 0)
+					{
+						if ( xQueueReceive(queue, (void*)&tempDev, 0) == pdTRUE )
+						{
+							int num = json_printf(&blOut, "{ name: %Q, address: %Q, RSSI: %d }",
+									tempDev.deviceName,
+									tempDev.address,
+									tempDev.rssi );
+
+							// print comma after object only if it's not the last of
+							// the json array
+							if (numMsg > 1)
+							{
+								json_printf(&blOut, ",");
+							}
+						}
+						else
+						{
+							ESP_LOGE(TAG, "Scanned device info cannot be retrieved"
+											" from queue or the queue is empty");
+						}
+					}
+
+					json_printf(&blOut, "]");	// ends json array
+
+					//publish
+					int msg_id = esp_mqtt_client_publish(client, TOPIC_BLEINFO, blBuffer, 0, 0, 0);
+					ESP_LOGI(TAG, "sent successful on TOPIC_BLEINFO, msg_id=%d: %s", msg_id, blBuffer);
+
+					// end
+					free(blBuffer);
+				}
+				else
+				{
+					ESP_LOGE(TAG, "Not enough heap to allocate buffer for json"
+							 	  " of scanned bl devices");
+				}
 			}
 				break;
 			default:

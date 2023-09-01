@@ -19,9 +19,12 @@
 #define TOPIC_LWT		MQTT_TOPIC_SUBSCRIBE_BASE "/BOARD/STATUS"
 #define TOPIC_TEMP			MQTT_TOPIC_SUBSCRIBE_BASE "/TEMP"
 #define TOPIC_WEATHER	MQTT_TOPIC_SUBSCRIBE_BASE "/WEATHER"
+#define TOPIC_BLEINFO	MQTT_TOPIC_SUBSCRIBE_BASE "/BLEINFO"
 
 #define LWT_MESSAGE		"{ \"status\": \"died\" }"
 #define MSG_ALIVE		"{ \"status\": \"alive\" }"
+
+#define SIZE_STR_PRINT_BLE	(sizeof("{name: , address: , RSSI: },"))
 
 //*****************************************************************************
 //      PROTOTIPOS DE FUNCIONES

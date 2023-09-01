@@ -57,7 +57,8 @@ static Event_t getGlobalFlagForRegisteredEvents()
 					EVENT_ACK_MODE_PUSH_BUTTONS_POLL |
 					EVENT_ACK_START_TEMP |
 					EVENT_ACK_STOP_TEMP |
-					EVENT_TEMPERATURE;
+					EVENT_TEMPERATURE |
+					EVENT_BLESCAN_FINISHED;
 
 	return gflag;
 }

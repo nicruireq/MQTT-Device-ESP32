@@ -27,6 +27,7 @@ typedef EventBits_t Event_t;
 #define EVENT_ACK_START_TEMP				0x000100
 #define EVENT_ACK_STOP_TEMP					0x000200
 #define EVENT_TEMPERATURE					0x000400
+#define EVENT_BLESCAN_FINISHED				0X000800
 
 
 esp_err_t initActionsSignaler();

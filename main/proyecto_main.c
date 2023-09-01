@@ -226,7 +226,7 @@ void app_main(void)
     }
 
     //Inicializa el servidor TCP
-    initTCPServer();
+    //initTCPServer();	// optional in this project
 
     // Arranca el cliente MQTT.
 #if CONFIG_EXAMPLE_CONNECT_WIFI_STATION
